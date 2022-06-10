@@ -11,7 +11,7 @@ import {
 /**
  * A simple example includes a HTTP get method to get all items from a DynamoDB table.
  */
-const renderScreenshot: APIGatewayProxyHandler = async (
+const renderHTML: APIGatewayProxyHandler = async (
   event: APIGatewayEvent,
   context: Context
 ) => {
@@ -33,6 +33,8 @@ const renderScreenshot: APIGatewayProxyHandler = async (
   await page.goto(url);
   const title = await page.evaluate(() => document.title);
 
+  await browser.close();
+
   const response = {
     statusCode: 200,
     body: title,
@@ -45,4 +47,4 @@ const renderScreenshot: APIGatewayProxyHandler = async (
   return response;
 };
 
-exports.renderScreenshot = renderScreenshot;
+exports.renderHTML = renderHTML;
