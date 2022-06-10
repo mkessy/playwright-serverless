@@ -3,3 +3,4 @@ node_modules
 .aws-sam/build
 .aws-sam/build.toml
 render-screenshot/package-lock.json
+ecr.json
