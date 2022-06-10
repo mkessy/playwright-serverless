@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: 2010-09-09
+AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   playwright-serverless
 
@@ -6,36 +6,71 @@ Transform:
   - AWS::Serverless-2016-10-31
 
 Resources:
-  RenderScreenshot:
+  Playwright:
     Type: AWS::Serverless::Function
     Properties:
       PackageType: Image
       Architectures:
         - x86_64
-      MemorySize: 512
+      MemorySize: 1600
       Timeout: 100
-      Description: Render and screenshot the attached HTML string
+      Description: Lambda function with headless playwright run time env
       Events:
-        RenderScreenshot:
-          Type: Api
+        ReadabilityBotNewURL:
+          Type: SQS
           Properties:
-            Path: /render_screenshot
-            Method: post
+            Queue: !Ref ReadabilityBotURLQueue
+            BatchSize: 10
+
     Metadata:
       DockerTag: nodejs14.x-v1
-      DockerContext: ./render-screenshot
+      DockerContext: ./render-html
       Dockerfile: Dockerfile
 
+  ReadabilityStaticHostStore:
+    Type: AWS::S3::Bucket
+    Properties:
+
+  TwitterBotsEventsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: TwitterBotEvent
+      Tags:
+        - Key: readability # name of related bot
+          Value: newUrlTopic
+
+  ReadabilityURLQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !GetAtt TwitterBotsEventsTopic.Arn
+      Endpoint: !GetAtt ReadabilityBotURLQueue.Arn
+      Protocol: sqs
+      RawMessageDelivery: true
+      FilterPolicy: '{"event": ["new-readability-url"]}'
+
+  ReadabilityBotURLQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 30
+      DelaySeconds: 0
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
+      Tags:
+        - Key: readability # name of related bot
+          Value: URLQueue
+
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue
+
+
 Outputs:
-  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-  RenderScreenshotApi:
-    Description: "API Gateway endpoint URL for Prod stage for RenderScreenshot function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/render_screenshot/"
-  RenderScreenshotFunction:
-    Description: "Render Screenshot Lambda Function ARN"
-    Value: !GetAtt RenderScreenshotFunction.Arn
-  RenderScreenshotFunctionIamRole:
+
+  TwitterBotsEvents:
+    Description: "Arn for Twitter bots events SNS"
+    Value: !Ref TwitterBotsEventsTopic
+
+  PlaywrightFunctionIamRole:
     Description: "Implicit IAM Role created for Render Screenshot function"
-    Value: !GetAtt RenderScreenshotFunctionRole.Arn
+    Value: !GetAtt playwrightRole.Arn
