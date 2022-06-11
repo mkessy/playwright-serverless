@@ -6,38 +6,30 @@ import {
   APIGatewayProxyResult,
   APIGatewayEvent,
   APIGatewayProxyHandler,
+  SQSEvent,
 } from "aws-lambda";
 
 /**
  * A simple example includes a HTTP get method to get all items from a DynamoDB table.
  */
-const renderHTML: APIGatewayProxyHandler = async (
-  event: APIGatewayEvent,
-  context: Context
-) => {
-  const browser = await playwright.chromium.launch({
+const renderHTML = async (event: SQSEvent, context: Context) => {
+  /* const browser = await playwright.chromium.launch({
     args: chromeAwsLambda.args,
     executablePath: await chromeAwsLambda.executablePath,
     headless: chromeAwsLambda.headless,
-  });
+  }) */
 
-  if (!event.body) {
-    return {
-      body: "Error: No Url Provided",
-      statusCode: 403,
-    };
-  }
-  const { url } = JSON.parse(event.body);
-
-  const page = await browser.newPage();
-  await page.goto(url);
-  const title = await page.evaluate(() => document.title);
-
-  await browser.close();
+  const receivedEvents = event.Records.map(
+    ({ messageId, messageAttributes, body }) => ({
+      messageId,
+      messageAttributes,
+      body,
+    })
+  ).reduce((prev, curr) => `${prev}######${curr}`, "");
 
   const response = {
     statusCode: 200,
-    body: title,
+    body: JSON.stringify(receivedEvents),
   };
 
   // All log statements are written to CloudWatch

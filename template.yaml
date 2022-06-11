@@ -6,7 +6,7 @@ Transform:
   - AWS::Serverless-2016-10-31
 
 Resources:
-  Playwright:
+  RenderScreenshot:
     Type: AWS::Serverless::Function
     Properties:
       PackageType: Image
@@ -19,9 +19,15 @@ Resources:
         ReadabilityBotNewURL:
           Type: SQS
           Properties:
-            Queue: !Ref ReadabilityBotURLQueue
-            BatchSize: 10
-
+            Queue: !GetAtt ReadabilityBotURLQueue.Arn
+            BatchSize: 1
+      Policies:
+        - SQSPollerPolicy:
+            QueueName: !Ref ReadabilityBotURLQueue
+        - S3CrudPolicy:
+            BucketName: !Ref ReadabilityStaticHostStore
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReadabilityURLTable
     Metadata:
       DockerTag: nodejs14.x-v1
       DockerContext: ./render-html
@@ -29,7 +35,6 @@ Resources:
 
   ReadabilityStaticHostStore:
     Type: AWS::S3::Bucket
-    Properties:
 
   TwitterBotsEventsTopic:
     Type: AWS::SNS::Topic
@@ -42,26 +47,36 @@ Resources:
   ReadabilityURLQueueSubscription:
     Type: AWS::SNS::Subscription
     Properties:
-      TopicArn: !GetAtt TwitterBotsEventsTopic.Arn
+      TopicArn: !Ref TwitterBotsEventsTopic
       Endpoint: !GetAtt ReadabilityBotURLQueue.Arn
       Protocol: sqs
       RawMessageDelivery: true
       FilterPolicy: '{"event": ["new-readability-url"]}'
 
+  ReadabilityURLTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      PrimaryKey:
+        Name: url
+        Type: String
+
+
   ReadabilityBotURLQueue:
     Type: AWS::SQS::Queue
     Properties:
-      VisibilityTimeout: 30
+      VisibilityTimeout: 500
       DelaySeconds: 0
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
+        maxReceiveCount: 4
       Tags:
         - Key: readability # name of related bot
           Value: URLQueue
 
+
+
   DeadLetterQueue:
     Type: AWS::SQS::Queue
-
 
 Outputs:
   # Find out more about other implicit resources you can reference within SAM
@@ -71,6 +86,10 @@ Outputs:
     Description: "Arn for Twitter bots events SNS"
     Value: !Ref TwitterBotsEventsTopic
 
-  PlaywrightFunctionIamRole:
+  RenderScreenshotIamRole:
     Description: "Implicit IAM Role created for Render Screenshot function"
-    Value: !GetAtt playwrightRole.Arn
+    Value: !GetAtt RenderScreenshot.Arn
+
+  ReadabilityStaticHostStore:
+    Description: "Arn for S3 bucket containing static readibility objects"
+    Value: !GetAtt ReadabilityStaticHostStore.Arn

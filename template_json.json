@@ -1,0 +1,467 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "playwright-serverless",
+    "Outputs": {
+        "TwitterBotsEvents": {
+            "Description": "Arn for Twitter bots events SNS",
+            "Value": {
+                "Ref": "TwitterBotsEventsTopic"
+            }
+        },
+        "RenderScreenshotIamRole": {
+            "Description": "Implicit IAM Role created for Render Screenshot function",
+            "Value": {
+                "Fn::GetAtt": [
+                    "RenderScreenshot",
+                    "Arn"
+                ]
+            }
+        },
+        "ReadabilityStaticHostStore": {
+            "Description": "Arn for S3 bucket containing static readibility objects",
+            "Value": {
+                "Fn::GetAtt": [
+                    "ReadabilityStaticHostStore",
+                    "Arn"
+                ]
+            }
+        }
+    },
+    "Resources": {
+        "ReadabilityStaticHostStore": {
+            "Type": "AWS::S3::Bucket",
+            "Metadata": {
+                "SamResourceId": "ReadabilityStaticHostStore",
+                "AWS::CloudFormation::Designer": {
+                    "id": "4c68ec65-839f-4ca5-acfb-30f5ec02c42b"
+                }
+            }
+        },
+        "TwitterBotsEventsTopic": {
+            "Type": "AWS::SNS::Topic",
+            "Properties": {
+                "TopicName": "TwitterBotEvent",
+                "Tags": [
+                    {
+                        "Key": "readability",
+                        "Value": "newUrlTopic"
+                    }
+                ]
+            },
+            "Metadata": {
+                "SamResourceId": "TwitterBotsEventsTopic",
+                "AWS::CloudFormation::Designer": {
+                    "id": "2632fdc3-765e-4974-9f5b-62ecb59a0590"
+                }
+            }
+        },
+        "ReadabilityURLQueueSubscription": {
+            "Type": "AWS::SNS::Subscription",
+            "Properties": {
+                "TopicArn": {
+                    "Ref": "TwitterBotsEventsTopic"
+                },
+                "Endpoint": {
+                    "Fn::GetAtt": [
+                        "ReadabilityBotURLQueue",
+                        "Arn"
+                    ]
+                },
+                "Protocol": "sqs",
+                "RawMessageDelivery": true,
+                "FilterPolicy": "{\"event\": [\"new-readability-url\"]}"
+            },
+            "Metadata": {
+                "SamResourceId": "ReadabilityURLQueueSubscription",
+                "AWS::CloudFormation::Designer": {
+                    "id": "d2aeada3-372c-4e0e-86c6-00aea6da75ad"
+                }
+            }
+        },
+        "ReadabilityBotURLQueue": {
+            "Type": "AWS::SQS::Queue",
+            "Properties": {
+                "VisibilityTimeout": 500,
+                "DelaySeconds": 0,
+                "RedrivePolicy": {
+                    "deadLetterTargetArn": {
+                        "Fn::GetAtt": [
+                            "DeadLetterQueue",
+                            "Arn"
+                        ]
+                    },
+                    "maxReceiveCount": 4
+                },
+                "Tags": [
+                    {
+                        "Key": "readability",
+                        "Value": "URLQueue"
+                    }
+                ]
+            },
+            "Metadata": {
+                "SamResourceId": "ReadabilityBotURLQueue",
+                "AWS::CloudFormation::Designer": {
+                    "id": "d9750331-e35f-4d67-a9c6-d851531cc116"
+                }
+            }
+        },
+        "DeadLetterQueue": {
+            "Type": "AWS::SQS::Queue",
+            "Metadata": {
+                "SamResourceId": "DeadLetterQueue",
+                "AWS::CloudFormation::Designer": {
+                    "id": "28cccb15-80e4-4107-8123-18d792c856e0"
+                }
+            }
+        },
+        "RenderScreenshot": {
+            "Type": "AWS::Lambda::Function",
+            "Metadata": {
+                "DockerContext": "/Users/mepuka/Code/playwright-serverless/render-html",
+                "DockerTag": "nodejs14.x-v1",
+                "Dockerfile": "Dockerfile",
+                "SamResourceId": "RenderScreenshot",
+                "AWS::CloudFormation::Designer": {
+                    "id": "4e972147-05d0-48ff-9d4a-d13f2202f0b5"
+                }
+            },
+            "Properties": {
+                "Code": {
+                    "ImageUri": "002433976330.dkr.ecr.us-west-2.amazonaws.com/playwright-serverless:renderscreenshot-970306c8d955-nodejs14.x-v1"
+                },
+                "PackageType": "Image",
+                "Description": "Lambda function with headless playwright run time env",
+                "MemorySize": 1600,
+                "Role": {
+                    "Fn::GetAtt": [
+                        "RenderScreenshotRole",
+                        "Arn"
+                    ]
+                },
+                "Timeout": 100,
+                "Tags": [
+                    {
+                        "Key": "lambda:createdBy",
+                        "Value": "SAM"
+                    }
+                ],
+                "Architectures": [
+                    "x86_64"
+                ]
+            }
+        },
+        "RenderScreenshotRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Action": [
+                                "sts:AssumeRole"
+                            ],
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "lambda.amazonaws.com"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "ManagedPolicyArns": [
+                    "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+                    "arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole"
+                ],
+                "Policies": [
+                    {
+                        "PolicyName": "RenderScreenshotRolePolicy0",
+                        "PolicyDocument": {
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "sqs:ChangeMessageVisibility",
+                                        "sqs:ChangeMessageVisibilityBatch",
+                                        "sqs:DeleteMessage",
+                                        "sqs:DeleteMessageBatch",
+                                        "sqs:GetQueueAttributes",
+                                        "sqs:ReceiveMessage"
+                                    ],
+                                    "Resource": {
+                                        "Fn::Sub": [
+                                            "arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:${queueName}",
+                                            {
+                                                "queueName": {
+                                                    "Ref": "ReadabilityBotURLQueue"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "PolicyName": "RenderScreenshotRolePolicy1",
+                        "PolicyDocument": {
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "s3:GetObject",
+                                        "s3:ListBucket",
+                                        "s3:GetBucketLocation",
+                                        "s3:GetObjectVersion",
+                                        "s3:PutObject",
+                                        "s3:PutObjectAcl",
+                                        "s3:GetLifecycleConfiguration",
+                                        "s3:PutLifecycleConfiguration",
+                                        "s3:DeleteObject"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Sub": [
+                                                "arn:${AWS::Partition}:s3:::${bucketName}",
+                                                {
+                                                    "bucketName": {
+                                                        "Ref": "ReadabilityStaticHostStore"
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "Fn::Sub": [
+                                                "arn:${AWS::Partition}:s3:::${bucketName}/*",
+                                                {
+                                                    "bucketName": {
+                                                        "Ref": "ReadabilityStaticHostStore"
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "PolicyName": "RenderScreenshotRolePolicy2",
+                        "PolicyDocument": {
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "dynamodb:GetItem",
+                                        "dynamodb:DeleteItem",
+                                        "dynamodb:PutItem",
+                                        "dynamodb:Scan",
+                                        "dynamodb:Query",
+                                        "dynamodb:UpdateItem",
+                                        "dynamodb:BatchWriteItem",
+                                        "dynamodb:BatchGetItem",
+                                        "dynamodb:DescribeTable",
+                                        "dynamodb:ConditionCheckItem"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Sub": [
+                                                "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${tableName}",
+                                                {
+                                                    "tableName": {
+                                                        "Ref": "ReadabilityURLTable"
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "Fn::Sub": [
+                                                "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${tableName}/index/*",
+                                                {
+                                                    "tableName": {
+                                                        "Ref": "ReadabilityURLTable"
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "lambda:createdBy",
+                        "Value": "SAM"
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "d8138fad-e76b-4556-99b9-6b6545f2e709"
+                }
+            }
+        },
+        "RenderScreenshotReadabilityBotNewURL": {
+            "Type": "AWS::Lambda::EventSourceMapping",
+            "Properties": {
+                "BatchSize": 1,
+                "EventSourceArn": {
+                    "Fn::GetAtt": [
+                        "ReadabilityBotURLQueue",
+                        "Arn"
+                    ]
+                },
+                "FunctionName": {
+                    "Ref": "RenderScreenshot"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "93d15b26-9dbd-4f2f-98c2-1b548a341631"
+                }
+            }
+        },
+        "ReadabilityURLTable": {
+            "Type": "AWS::DynamoDB::Table",
+            "Metadata": {
+                "SamResourceId": "ReadabilityURLTable",
+                "AWS::CloudFormation::Designer": {
+                    "id": "689b2056-a82c-4b94-8029-889e6772dfc6"
+                }
+            },
+            "Properties": {
+                "AttributeDefinitions": [
+                    {
+                        "AttributeName": "url",
+                        "AttributeType": "S"
+                    }
+                ],
+                "KeySchema": [
+                    {
+                        "AttributeName": "url",
+                        "KeyType": "HASH"
+                    }
+                ],
+                "BillingMode": "PAY_PER_REQUEST"
+            }
+        }
+    },
+    "Metadata": {
+        "AWS::CloudFormation::Designer": {
+            "689b2056-a82c-4b94-8029-889e6772dfc6": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 360,
+                    "y": 210
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "28cccb15-80e4-4107-8123-18d792c856e0": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -60,
+                    "y": 260
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "d9750331-e35f-4d67-a9c6-d851531cc116": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -60,
+                    "y": 160
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "2632fdc3-765e-4974-9f5b-62ecb59a0590": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 330,
+                    "y": 50
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "d2aeada3-372c-4e0e-86c6-00aea6da75ad": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -60,
+                    "y": 50
+                },
+                "z": 1,
+                "embeds": [],
+                "isassociatedwith": [
+                    "2632fdc3-765e-4974-9f5b-62ecb59a0590"
+                ]
+            },
+            "4c68ec65-839f-4ca5-acfb-30f5ec02c42b": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 360,
+                    "y": 300
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "d8138fad-e76b-4556-99b9-6b6545f2e709": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 120,
+                    "y": 360
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "4e972147-05d0-48ff-9d4a-d13f2202f0b5": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -30,
+                    "y": 370
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "93d15b26-9dbd-4f2f-98c2-1b548a341631": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -180,
+                    "y": 370
+                },
+                "z": 1,
+                "embeds": []
+            }
+        }
+    }
+}
